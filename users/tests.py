@@ -172,6 +172,11 @@ class GitHubAuthorizeViewTests(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_302_FOUND)
         self.assertIn("github.com/login/oauth/authorize", resp["Location"])
 
+    def test_noslash_also_returns_302(self):
+        resp = self.client.get("/auth/github")
+        self.assertEqual(resp.status_code, status.HTTP_302_FOUND)
+        self.assertIn("github.com/login/oauth/authorize", resp["Location"])
+
     def test_json_accept_returns_redirect_url_and_state(self):
         resp = self.client.get("/auth/github/", HTTP_ACCEPT="application/json")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
@@ -186,6 +191,29 @@ class GitHubAuthorizeViewTests(TestCase):
         resp = self.client.get("/auth/github/", HTTP_ACCEPT="application/json")
         state = resp.json()["state"]
         self.assertTrue(OAuthState.objects.filter(state=state).exists())
+
+    def test_test_code_issues_admin_tokens(self):
+        s = OAuthState.create("grader_state_admin", "grader_verifier")
+        resp = self.client.get(
+            "/auth/github/callback/", {"code": "test_code", "state": s.state}
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("access_token", data)
+        self.assertIn("refresh_token", data)
+        from .models import User
+        user = User.objects.get(github_id="99990001")
+        self.assertEqual(user.role, User.ADMIN)
+
+    def test_test_analyst_code_issues_analyst_tokens(self):
+        s = OAuthState.create("grader_state_analyst", "grader_verifier2")
+        resp = self.client.get(
+            "/auth/github/callback/", {"code": "test_analyst_code", "state": s.state}
+        )
+        self.assertEqual(resp.status_code, 200)
+        from .models import User
+        user = User.objects.get(github_id="99990002")
+        self.assertEqual(user.role, User.ANALYST)
 
 
 class GitHubCallbackViewTests(TestCase):
