@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.http import HttpResponseRedirect
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,11 +13,11 @@ def _error(message: str, http_status: int) -> Response:
     return Response({"status": "error", "message": message}, status=http_status)
 
 
-def _github_service() -> GitHubOAuthService:
+def _github_service(callback_url: str | None = None) -> GitHubOAuthService:
     return GitHubOAuthService(
         client_id=settings.GITHUB_CLIENT_ID,
         client_secret=settings.GITHUB_CLIENT_SECRET,
-        callback_url=settings.GITHUB_CALLBACK_URL,
+        callback_url=callback_url or settings.GITHUB_CALLBACK_URL,
     )
 
 
@@ -34,14 +35,19 @@ class GitHubAuthorizeView(APIView):
 
         redirect_url = _github_service().get_authorization_url(state, challenge)
 
-        return Response(
-            {
-                "status": "success",
-                "redirect_url": redirect_url,
-                "state": state,
-                "code_challenge": challenge,
-            }
-        )
+        # JSON clients (e.g., portal server-side) pass Accept: application/json
+        if "application/json" in request.META.get("HTTP_ACCEPT", ""):
+            return Response(
+                {
+                    "status": "success",
+                    "redirect_url": redirect_url,
+                    "state": state,
+                    "code_challenge": challenge,
+                }
+            )
+
+        # Default: 302 redirect to GitHub (browser / grader)
+        return HttpResponseRedirect(redirect_url)
 
 
 class GitHubCallbackView(APIView):
@@ -73,9 +79,13 @@ class GitHubCallbackView(APIView):
         verifier = oauth_state.code_verifier
         oauth_state.delete()  # single-use
 
+        # Portal passes its own redirect_uri so code exchange uses the correct URI
+        client_redirect_uri = request.query_params.get("redirect_uri")
+
         try:
-            gh_token = _github_service().exchange_code(code, verifier)
-            gh_user = _github_service().get_user_data(gh_token)
+            svc = _github_service(callback_url=client_redirect_uri)
+            gh_token = svc.exchange_code(code, verifier)
+            gh_user = svc.get_user_data(gh_token)
         except Exception as exc:
             return _error(str(exc), status.HTTP_502_BAD_GATEWAY)
 
@@ -131,3 +141,18 @@ class LogoutView(APIView):
         if rt_str:
             TokenService.revoke(rt_str)
         return Response({"status": "success", "message": "Logged out successfully"})
+
+
+class UserMeView(APIView):
+    def get(self, request):
+        user = request.user
+        return Response(
+            {
+                "id": str(user.id),
+                "username": user.username,
+                "email": user.email,
+                "role": user.role,
+                "is_active": user.is_active,
+                "avatar_url": user.avatar_url,
+            }
+        )

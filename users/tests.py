@@ -167,8 +167,13 @@ class GitHubAuthorizeViewTests(TestCase):
         cache.clear()
         self.client = APIClient()
 
-    def test_returns_redirect_url_and_state(self):
+    def test_default_returns_302_redirect_to_github(self):
         resp = self.client.get("/auth/github/")
+        self.assertEqual(resp.status_code, status.HTTP_302_FOUND)
+        self.assertIn("github.com/login/oauth/authorize", resp["Location"])
+
+    def test_json_accept_returns_redirect_url_and_state(self):
+        resp = self.client.get("/auth/github/", HTTP_ACCEPT="application/json")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         data = resp.json()
         self.assertEqual(data["status"], "success")
@@ -178,7 +183,7 @@ class GitHubAuthorizeViewTests(TestCase):
         self.assertIn("github.com/login/oauth/authorize", data["redirect_url"])
 
     def test_stores_oauth_state_in_db(self):
-        resp = self.client.get("/auth/github/")
+        resp = self.client.get("/auth/github/", HTTP_ACCEPT="application/json")
         state = resp.json()["state"]
         self.assertTrue(OAuthState.objects.filter(state=state).exists())
 
