@@ -7,7 +7,15 @@ class AuthThrottle(SimpleRateThrottle):
     scope = "auth"
 
     def get_cache_key(self, request, view):
-        ident = self.get_ident(request)
+        # Use only the leftmost X-Forwarded-For IP (the real client IP).
+        # Railway's Fastly CDN appends a rotating edge IP to XFF; the default
+        # DRF get_ident() joins all IPs together, producing a unique key per
+        # request and defeating throttling.
+        xff = request.META.get("HTTP_X_FORWARDED_FOR")
+        if xff:
+            ident = xff.split(",")[0].strip()
+        else:
+            ident = request.META.get("REMOTE_ADDR")
         return self.cache_format % {"scope": self.scope, "ident": ident}
 
 
