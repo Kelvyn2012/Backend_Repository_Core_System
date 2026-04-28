@@ -22,8 +22,13 @@ python manage.py seed_profiles --clear
 # Start dev server
 python manage.py runserver
 
-# Run all 118 tests
+# Lint (errors only, then style warnings)
+flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+# Run all tests (either runner works; CI uses pytest)
 python manage.py test api users
+pytest --cov=. --cov-report=term-missing -v
 
 # Run a specific test class
 python manage.py test api.tests.NLParserTests
@@ -54,7 +59,7 @@ Without `DATABASE_URL`, the app falls back to individual vars: `POSTGRES_DB`, `D
 
 ## Architecture
 
-Two Django apps:
+Django project module: `genderize_project/`. Two apps:
 
 - **`users/`** — authentication, tokens, RBAC
 - **`api/`** — profile data, filtering, NL search
@@ -91,7 +96,7 @@ URL order in `api/urls.py` matters — `export/` and `search/` must be before `<
 
 ### Key modules
 
-- **[users/models.py](users/models.py)** — `User`, `OAuthState`, `AccessToken`, `RefreshToken`. Token TTLs defined at module level: access=3min, refresh=5min, state=10min.
+- **[users/models.py](users/models.py)** — `User`, `OAuthState`, `AccessToken`, `RefreshToken`. Token TTLs defined at module level: access=3min, refresh=5min, state=10min. All IDs are UUID v7 (`uuid6.uuid7`), not Django's default UUID4.
 
 - **[users/services.py](users/services.py)** — `PKCEService` (code_verifier/challenge generation), `GitHubOAuthService` (concurrent token exchange + user fetch), `TokenService` (issue_token_pair, refresh, revoke), `create_or_update_user`.
 
@@ -107,9 +112,15 @@ URL order in `api/urls.py` matters — `export/` and `search/` must be before `<
 
 - **[api/parser.py](api/parser.py)** — Pure regex + lookup NL parser. `parse_query(q)` returns a filter-params dict or `None`. `"young"` → min_age=16, max_age=24. Both genders together → no gender filter.
 
-- **[api/services.py](api/services.py)** — `ProfileAggregatorService.fetch_and_process_data(name)` fires three external API calls concurrently. Raises `ExternalAPIException` or `InvalidProfileDataException` on failure → caller maps to 502.
+- **[api/services.py](api/services.py)** — `ProfileAggregatorService.fetch_and_process_data(name)` fires three external API calls concurrently via `ThreadPoolExecutor` + `httpx.Client`. Raises `ExternalAPIException` or `InvalidProfileDataException` on failure → caller maps to 502. Both exception classes live in **[api/exceptions.py](api/exceptions.py)**.
 
 - **[api/pagination.py](api/pagination.py)** — Extended `ProfilePagination` adds `total_pages` and `links` (self/next/prev) to the response envelope.
+
+- **[api/countries.py](api/countries.py)** — ISO 3166-1 alpha-2 code ↔ country name mapping. Used by `ProfileAggregatorService` to resolve names and by `parse_query` for NL country lookups.
+
+### Age group boundaries
+
+`ProfileAggregatorService._age_group(age)` maps: child ≤12, teenager ≤19, adult ≤59, senior >59.
 
 ### Critical settings note
 
@@ -139,3 +150,5 @@ client.credentials(
 ```
 
 Auth endpoint tests that use `AuthThrottle` must call `cache.clear()` in `setUp()` to prevent throttle accumulation across tests.
+
+Tests that mock `ProfileAggregatorService` must patch `api.views.ProfileAggregatorService` (where it is imported), not `api.services.ProfileAggregatorService`.
