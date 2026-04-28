@@ -40,6 +40,48 @@ A production-ready Django REST Framework service that provides secure, multi-use
 
 ---
 
+## CLI Usage
+
+The CLI is a separate package (`insighta-cli`) installable globally:
+
+```bash
+pip install insighta-cli
+```
+
+Credentials are stored at `~/.insighta/credentials.json`. The CLI auto-refreshes the access token when it expires.
+
+```bash
+# Authenticate (opens GitHub OAuth in browser)
+insighta login
+
+# Sign out and revoke server-side token
+insighta logout
+
+# List profiles (all filters optional)
+insighta profiles list
+insighta profiles list --gender female --age-group adult --country NG
+insighta profiles list --min-age 20 --max-age 40 --sort-by age --order desc
+insighta profiles list --page 2 --limit 25
+
+# Natural language search
+insighta profiles search "young males from nigeria"
+insighta profiles search "senior women from kenya"
+
+# Get a single profile by UUID
+insighta profiles get <uuid>
+
+# Export to CSV (same filters as list; writes to stdout or --output FILE)
+insighta profiles export --gender male --output males.csv
+
+# Create a profile from external APIs (admin only)
+insighta profiles create amara
+
+# Delete a profile (admin only)
+insighta profiles delete <uuid>
+```
+
+---
+
 ## Setup
 
 ### 1 · Clone and create virtualenv
