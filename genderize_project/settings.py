@@ -76,13 +76,22 @@ else:
         }
     }
 
-# ── Cache (use Redis in production via CACHE_URL) ─────────────────────────────
+# ── Cache (Redis > DB > locmem) ───────────────────────────────────────────────
 CACHE_URL = os.environ.get("CACHE_URL")
 if CACHE_URL:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
             "LOCATION": CACHE_URL,
+        }
+    }
+elif os.environ.get("DATABASE_URL"):
+    # Database-backed cache is shared across all processes/replicas — required
+    # for throttling to work correctly when LocMemCache would be per-process.
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+            "LOCATION": "django_throttle_cache",
         }
     }
 else:
