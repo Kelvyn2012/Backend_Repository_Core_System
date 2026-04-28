@@ -94,6 +94,15 @@ else:
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "authorization",
+    "content-type",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "x-api-version",
+]
 
 # ── Static files ──────────────────────────────────────────────────────────────
 STATIC_URL = "static/"
