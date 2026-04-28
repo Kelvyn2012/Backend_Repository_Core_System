@@ -43,11 +43,14 @@ class GitHubAuthorizeView(APIView):
                     "redirect_url": redirect_url,
                     "state": state,
                     "code_challenge": challenge,
-                }
+                },
+                headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
             )
 
         # Default: 302 redirect to GitHub (browser / grader)
-        return HttpResponseRedirect(redirect_url)
+        response = HttpResponseRedirect(redirect_url)
+        response["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        return response
 
 
 class GitHubCallbackView(APIView):
