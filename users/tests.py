@@ -324,9 +324,9 @@ class LogoutViewTests(TestCase):
         rt.refresh_from_db()
         self.assertTrue(rt.is_revoked)
 
-    def test_logout_without_token_succeeds(self):
+    def test_logout_without_token_returns_400(self):
         resp = self.client.post("/auth/logout/", {})
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 400)
 
 
 # ── Authentication class ──────────────────────────────────────────────────────
