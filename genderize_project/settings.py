@@ -140,7 +140,7 @@ REST_FRAMEWORK = {
         "users.throttling.UserThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "auth": "10/min",
+        "auth": "8/min",
         "user": "60/min",
     },
 }
