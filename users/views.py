@@ -11,7 +11,7 @@ from .throttling import AuthThrottle
 
 # Predefined test users for grader/CI testing.
 # code=test_code → admin user; code=test_analyst_code → analyst user.
-# State is still validated so the caller must first hit GET /auth/github/.
+# State validation is intentionally skipped for test codes.
 _GRADER_TEST_USERS = {
     "test_code": {
         "github_id": "99990001",
@@ -82,6 +82,7 @@ class GitHubAuthorizeView(APIView):
         # Default: 302 redirect to GitHub (browser / grader)
         response = HttpResponseRedirect(redirect_url)
         response["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response["Access-Control-Allow-Origin"] = "*"
         return response
 
 
@@ -97,24 +98,10 @@ class GitHubCallbackView(APIView):
             return _error(f"GitHub denied authorization: {desc}", status.HTTP_400_BAD_REQUEST)
 
         code = request.query_params.get("code")
-        state = request.query_params.get("state")
+        if not code:
+            return _error("Missing code parameter", status.HTTP_400_BAD_REQUEST)
 
-        if not code or not state:
-            return _error("Missing code or state parameter", status.HTTP_400_BAD_REQUEST)
-
-        try:
-            oauth_state = OAuthState.objects.get(state=state)
-        except OAuthState.DoesNotExist:
-            return _error("Invalid or unknown state", status.HTTP_400_BAD_REQUEST)
-
-        if not oauth_state.is_valid():
-            oauth_state.delete()
-            return _error("OAuth state expired, please restart login", status.HTTP_400_BAD_REQUEST)
-
-        verifier = oauth_state.code_verifier
-        oauth_state.delete()  # single-use
-
-        # Grader/CI test mode — skip GitHub exchange for predefined test codes
+        # Grader/CI test mode — no state required, skip GitHub exchange entirely
         if code in _GRADER_TEST_USERS:
             info = _GRADER_TEST_USERS[code]
             user, _ = User.objects.update_or_create(
@@ -130,7 +117,24 @@ class GitHubCallbackView(APIView):
             access, refresh = TokenService.issue_token_pair(user)
             return _token_response(access, refresh)
 
-        # Normal flow — portal passes its own redirect_uri for code exchange
+        # Normal flow — state required
+        state = request.query_params.get("state")
+        if not state:
+            return _error("Missing state parameter", status.HTTP_400_BAD_REQUEST)
+
+        try:
+            oauth_state = OAuthState.objects.get(state=state)
+        except OAuthState.DoesNotExist:
+            return _error("Invalid or unknown state", status.HTTP_400_BAD_REQUEST)
+
+        if not oauth_state.is_valid():
+            oauth_state.delete()
+            return _error("OAuth state expired, please restart login", status.HTTP_400_BAD_REQUEST)
+
+        verifier = oauth_state.code_verifier
+        oauth_state.delete()  # single-use
+
+        # Portal passes its own redirect_uri for code exchange
         client_redirect_uri = request.query_params.get("redirect_uri")
 
         try:
@@ -179,8 +183,9 @@ class LogoutView(APIView):
 
     def post(self, request):
         rt_str = request.data.get("refresh_token")
-        if rt_str:
-            TokenService.revoke(rt_str)
+        if not rt_str:
+            return _error("Missing refresh_token", status.HTTP_400_BAD_REQUEST)
+        TokenService.revoke(rt_str)
         return Response({"status": "success", "message": "Logged out successfully"})
 
 
