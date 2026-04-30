@@ -89,7 +89,7 @@ class GitHubAuthorizeView(APIView):
 class GitHubCallbackView(APIView):
     authentication_classes = []
     permission_classes = []
-    throttle_classes = [AuthThrottle]
+    throttle_classes = []
 
     def get(self, request):
         error = request.query_params.get("error")
@@ -156,7 +156,7 @@ class GitHubCallbackView(APIView):
 class RefreshTokenView(APIView):
     authentication_classes = []
     permission_classes = []
-    throttle_classes = [AuthThrottle]
+    throttle_classes = []
 
     def post(self, request):
         rt_str = request.data.get("refresh_token")
@@ -179,7 +179,7 @@ class RefreshTokenView(APIView):
 class LogoutView(APIView):
     authentication_classes = []
     permission_classes = []
-    throttle_classes = [AuthThrottle]
+    throttle_classes = []
 
     def post(self, request):
         rt_str = request.data.get("refresh_token")
@@ -195,6 +195,7 @@ class UserMeView(APIView):
         return Response(
             {
                 "id": str(user.id),
+                "github_id": user.github_id,
                 "username": user.username,
                 "email": user.email,
                 "role": user.role,
