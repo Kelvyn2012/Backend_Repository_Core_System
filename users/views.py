@@ -47,7 +47,7 @@ def _token_response(access, refresh) -> Response:
             "access_token": access.token,
             "refresh_token": refresh.token,
             "token_type": "Bearer",
-            "expires_in": 180,
+            "expires_in": 1800,
         },
         status=status.HTTP_200_OK,
     )

@@ -5,8 +5,8 @@ import uuid6
 from django.db import models
 from django.utils import timezone
 
-ACCESS_TOKEN_TTL = timedelta(minutes=3)
-REFRESH_TOKEN_TTL = timedelta(minutes=5)
+ACCESS_TOKEN_TTL = timedelta(minutes=30)
+REFRESH_TOKEN_TTL = timedelta(hours=1)
 OAUTH_STATE_TTL = timedelta(minutes=10)
 
 
